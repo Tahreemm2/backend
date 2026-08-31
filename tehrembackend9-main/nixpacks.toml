@@ -1,0 +1,42 @@
+# =============================================================================
+# FILE: nixpacks.toml
+# PURPOSE: Tells Railway's Nixpacks builder exactly how to run this vanilla
+# PHP project. Without this, Nixpacks may default to an Apache/FrankenPHP
+# config that expects a Laravel-style public/ directory structure, which
+# this project does not use.
+#
+# This starts PHP's built-in web server, bound to the port Railway injects
+# via $PORT, serving directly from the project root — so /api/login.php
+# and /api/data.php are reachable exactly at those paths.
+#
+# UPLOADED FILES / PERSISTENCE:
+# store_base64_image() (config/helpers.php) writes inspection/discrepancy
+# photos to ./uploads/, which resolves to /app/uploads at runtime under
+# Nixpacks. Railway's container filesystem is ephemeral by default — those
+# files disappear on every redeploy/restart unless a Railway Volume is
+# attached to THIS service with Mount Path = /app/uploads (Dashboard ->
+# Cmd/Ctrl+K -> "New Volume", or `railway volume add`). This is a
+# dashboard/CLI action, not something expressed in this file.
+#
+# PRODUCTION READINESS — read before real field rollout:
+# `php -S` (PHP's built-in development server) is explicitly documented by
+# the PHP project as NOT intended for production use: it is single-threaded
+# (one request at a time — a slow request, e.g. a large photo upload, blocks
+# every other inspector's request until it finishes) and has none of the
+# hardening (timeouts, connection limits, etc.) a real web server provides.
+# It's fine for the current testing/pilot phase. Before onboarding many
+# concurrent field inspectors, revisit both of these together:
+#   1. Serve via php-fpm + nginx/Caddy (or a managed PHP buildpack) instead
+#      of `php -S`, for real concurrency.
+#   2. Move store_base64_image()/build_upload_url() off local disk (even
+#      with a Volume attached) onto S3-compatible object storage
+#      (Cloudflare R2, Backblaze B2, AWS S3) — more resilient, and required
+#      if this service is ever scaled to more than one replica, since a
+#      Railway Volume is only visible to a single running instance.
+# =============================================================================
+
+[phases.setup]
+nixPkgs = ["php81"]
+
+[start]
+cmd = "php -S 0.0.0.0:$PORT -t ."
